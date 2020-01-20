@@ -208,6 +208,9 @@ export default {
 			x = Math.min(vm.x, vm.base);
 			sx = Math.abs(vm.base - vm.x);
 		} else {
+			if (config.drawOutside === true && ['left', 'right'].includes(config.align)) {
+				x += (vm.width / 2 * (config.align === 'left' ? -1 : 1))
+			}
 			y = Math.min(vm.y, vm.base);
 			sy = Math.abs(vm.base - vm.y);
 		}

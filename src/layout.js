@@ -1,4 +1,5 @@
 import HitBox from './hitbox';
+import utils from './utils';
 
 function coordinates(view, model, geometry) {
 	var point = model.positioner(view, model);
@@ -155,9 +156,54 @@ export default {
 
 		return null;
 	},
+	/*
+	 * Adjusts label positions so that there is no vertical overlap. For vertical bars.
+	 * It generally moves labels towards bottom, but makes sure they don't go too low
+	 */
+	adjustForNoOverlap: function(label, centers, center, itemsPerSeries, maxGraphHeight, numberOfVisibleDatasets) {
+		var state = label.$layout;
+
+		centers[state._idx] = centers[state._idx] || []
+		itemsPerSeries[state._idx] = itemsPerSeries[state._idx] || 0
+
+		var previousCenter = centers[state._idx].slice(-1).pop();
+		var requiredHeight = (numberOfVisibleDatasets[state._idx] - itemsPerSeries[state._idx] - 1) * label._rects.text.h;
+
+		var requiredDiff = center.y - maxGraphHeight + requiredHeight;
+		if (requiredDiff > 0) {
+			// make sure labels don't go under bottom
+			center.yDiff = -requiredDiff;
+			center.y += -requiredDiff;
+		} else if (previousCenter) {
+			var diff = center.y - previousCenter.y - label._rects.text.h;
+			if (diff < 0) {
+				// adjust y and remember difference so original height is available
+				center.yDiff = -diff;
+				center.y += -diff;
+			}
+		}
+
+		// make sure first item is not too high. because it gets clipped
+		if (center.y < label._rects.text.h / 2) {
+			const diff = -center.y + label._rects.text.h / 2;
+			center.yDiff = diff;
+			center.y += diff;
+		}
+
+		centers[state._idx].push(center);
+		itemsPerSeries[state._idx] += 1;
+	},
+
+	getNumberOfVisibleDatasets: function(labels) {
+		return Object.entries(utils.groupBy(labels.map(label => label.$layout).filter(label => label._visible), '_idx')).reduce((acc, entry) => {
+			acc[entry[0]] = entry[1].length
+			return acc
+		}, {})
+	},
 
 	draw: function(chart, labels) {
 		var i, ilen, label, state, geometry, center;
+		var centers = {}, itemsPerSeries = {}, maxGraphHeight, numberOfVisibleDatasets;
 
 		for (i = 0, ilen = labels.length; i < ilen; ++i) {
 			label = labels[i];
@@ -166,6 +212,16 @@ export default {
 			if (state._visible) {
 				geometry = label.geometry();
 				center = coordinates(label._el._view, label.model(), geometry);
+
+				if (label._model.noOverlap === true) {
+					if (!maxGraphHeight /* calculate only once per draw */) {
+						maxGraphHeight = Math.max(...labels.map(label => label._el._view.y));
+						numberOfVisibleDatasets = this.getNumberOfVisibleDatasets(labels)
+					}
+
+					this.adjustForNoOverlap(label, centers, center, itemsPerSeries, maxGraphHeight, numberOfVisibleDatasets)
+				}
+
 				state._box.update(center, geometry, label.rotation());
 				label.draw(chart, center);
 			}

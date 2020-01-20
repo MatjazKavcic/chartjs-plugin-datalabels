@@ -136,7 +136,14 @@ var utils = {
 	 */
 	rasterize: function(v) {
 		return Math.round(v * devicePixelRatio) / devicePixelRatio;
-	}
+	},
+
+	groupBy: function (xs, key) {
+		return xs.reduce(function (rv, x) {
+			(rv[x[key]] = rv[x[key]] || []).push(x);
+			return rv;
+		}, {});
+	},
 };
 
 export default utils;

@@ -184,6 +184,26 @@ function drawText(ctx, lines, rect, model) {
 	}
 }
 
+function drawConnectingLine(ctx, model, center, geometry) {
+	var shouldDraw = model.drawOutside === true && model.connectingLineColor && center.yDiff && ['right', 'left'].includes(model.align) && model.lines.some(l => l !== '')
+
+	if (!shouldDraw) {
+		return;
+	}
+
+	var rect = geometry
+	var offset = model.offset
+	var isLeft = model.align === 'left'
+	var x = rect.x + (isLeft ? (model.size.width + offset + model.padding.right) : (model.padding.left - offset));
+	var y = rect.y + rect.h / 2;
+
+	ctx.beginPath();
+	ctx.strokeStyle = model.connectingLineColor
+	ctx.moveTo(x, y - (center.yDiff || 0));
+	ctx.lineTo(x + ((offset - 2) * (isLeft ? -1 : 1)), y);
+	ctx.stroke();
+}
+
 var Label = function(config, ctx, el, index) {
 	var me = this;
 
@@ -231,7 +251,11 @@ helpers.extend(Label.prototype, {
 			textShadowBlur: resolve([config.textShadowBlur, 0], context, index),
 			textShadowColor: resolve([config.textShadowColor, color], context, index),
 			textStrokeColor: resolve([config.textStrokeColor, color], context, index),
-			textStrokeWidth: resolve([config.textStrokeWidth, 0], context, index)
+			textStrokeWidth: resolve([config.textStrokeWidth, 0], context, index),
+			connectingLineColor: resolve([config.connectingLineColor, null], context, index), // supported only for vertical bar
+			drawOutside: resolve([config.drawOutside, false], context, index), // supported only for vertical bar
+			noOverlap: resolve([config.noOverlap, false], context, index), // supported only for vertical bar
+			hideZeroValues: resolve([config.hideZeroValues, false], context, index),
 		};
 	},
 
@@ -271,7 +295,7 @@ helpers.extend(Label.prototype, {
 	},
 
 	visible: function() {
-		return this._model && this._model.opacity;
+		return this._model && this._model.opacity && (!this._config.hideZeroValues || this.$context.dataset.data[this.$context.dataIndex] !== 0);
 	},
 
 	model: function() {
@@ -304,6 +328,9 @@ helpers.extend(Label.prototype, {
 
 		ctx.globalAlpha = utils.bound(0, model.opacity, 1);
 		ctx.translate(rasterize(center.x), rasterize(center.y));
+
+		drawConnectingLine(ctx, model, center, this.geometry())
+
 		ctx.rotate(model.rotation);
 
 		drawFrame(ctx, rects.frame, model);
